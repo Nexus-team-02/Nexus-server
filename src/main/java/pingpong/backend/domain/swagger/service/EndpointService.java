@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import pingpong.backend.domain.flow.FlowErrorCode;
 import pingpong.backend.domain.flow.FlowImage;
 import pingpong.backend.domain.flow.RequestEndpoint;
-import pingpong.backend.domain.flow.enums.FlowEndpointLinkStatus;
 import pingpong.backend.domain.flow.repository.FlowImageRepository;
 import pingpong.backend.domain.flow.repository.RequestEndpointRepository;
 import pingpong.backend.domain.member.Member;
@@ -19,7 +18,6 @@ import pingpong.backend.domain.swagger.Endpoint;
 import pingpong.backend.domain.swagger.SwaggerErrorCode;
 import pingpong.backend.domain.swagger.SwaggerSnapshot;
 import pingpong.backend.domain.swagger.dto.response.EndpointResponse;
-import pingpong.backend.domain.swagger.dto.response.EndpointStatusResponse;
 import pingpong.backend.domain.swagger.repository.EndpointRepository;
 import pingpong.backend.domain.swagger.repository.SwaggerSnapshotRepository;
 import pingpong.backend.domain.task.repository.FlowTaskRepository;
@@ -92,32 +90,6 @@ public class EndpointService {
 			return;
 		}
 		requestEndpointRepository.unlinkChangedEndpoints(endpointIds);
-	}
-
-	/**
-	 * PM - 개별 엔드포인트 연동 상태 조회
-	 */
-	@Transactional(readOnly = true)
-	public EndpointStatusResponse getEndpointStatus(Long endpointId) {
-		Endpoint endpoint = endpointRepository.findById(endpointId)
-			.orElseThrow(() -> new CustomException(SwaggerErrorCode.ENDPOINT_NOT_FOUND));
-
-		List<RequestEndpoint> links = requestEndpointRepository.findAllByEndpointId(endpointId);
-
-		FlowEndpointLinkStatus status;
-
-		if (links.isEmpty()) {
-			status = FlowEndpointLinkStatus.BACKEND_IN_PROGRESS;
-		} else {
-			boolean allLinked = links.stream()
-				.allMatch(re -> Boolean.TRUE.equals(re.getIsLinked()));
-
-			status = allLinked
-				? FlowEndpointLinkStatus.FULLY_INTEGRATED
-				: FlowEndpointLinkStatus.FRONTEND_IN_PROGRESS;
-		}
-
-		return EndpointStatusResponse.of(endpoint, status);
 	}
 
 	/**
