@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.*;
 import pingpong.backend.domain.member.Member;
 import pingpong.backend.domain.notion.dto.request.NotionCreatePageRequest;
 import pingpong.backend.domain.notion.dto.request.NotionPageUpdateRequest;
-import pingpong.backend.domain.notion.dto.response.DatabaseCreatedResponse;
 import pingpong.backend.domain.notion.dto.response.DatabaseWithPagesResponse;
 import pingpong.backend.domain.notion.dto.response.PageDetailResponse;
 import pingpong.backend.domain.notion.service.NotionFacade;
@@ -76,14 +75,4 @@ public class NotionResourceController {
         return SuccessResponse.ok(notionFacade.getPageBlocks(teamId, member, pageId));
     }
 
-    @PostMapping("/pages/{pageId}/databases")
-    @Operation(summary = "페이지 하위에 고정된 구조의 데이터베이스 생성",
-               description = "지정된 페이지 하위에 'API Status Overview' 데이터베이스를 생성합니다. (고정된 구조: Status(select), API List(title))")
-    public SuccessResponse<DatabaseCreatedResponse> createDatabase(
-            @PathVariable Long teamId,
-            @PathVariable String pageId,
-            @CurrentMember Member member
-    ) {
-        return SuccessResponse.ok(notionFacade.createDatabase(teamId, member, pageId));
-    }
 }
