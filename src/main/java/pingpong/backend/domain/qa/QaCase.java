@@ -65,4 +65,8 @@ public class QaCase {
 		qa.createdAt = LocalDateTime.now();
 		return qa;
 	}
+
+	public void updateIsSuccess(boolean isSuccess) {
+		this.isSuccess = isSuccess;
+	}
 }

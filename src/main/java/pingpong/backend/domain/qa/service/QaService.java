@@ -11,9 +11,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
+import pingpong.backend.domain.qa.QaCase;
 import pingpong.backend.domain.qa.QaErrorCode;
 import pingpong.backend.domain.qa.dto.QaCaseResponse;
 import pingpong.backend.domain.qa.repository.QaCaseRepository;
+import pingpong.backend.domain.swagger.dto.request.ApiExecuteRequest;
+import pingpong.backend.domain.swagger.dto.response.ApiExecuteResponse;
+import pingpong.backend.domain.swagger.service.ApiExecuteService;
 import pingpong.backend.global.exception.CustomException;
 
 @Service
@@ -22,6 +26,7 @@ import pingpong.backend.global.exception.CustomException;
 public class QaService {
 
 	private final QaCaseRepository qaCaseRepository;
+	private final ApiExecuteService apiExecuteService;
 	private final ObjectMapper objectMapper;
 
 	public List<QaCaseResponse> getQaCasesByEndpointId(Long endpointId) {
@@ -38,6 +43,26 @@ public class QaService {
 				qa.getCreatedAt()
 			))
 			.toList();
+	}
+
+	@Transactional
+	public ApiExecuteResponse executeQaCase(Long qaId) {
+		QaCase qa = qaCaseRepository.findById(qaId)
+			.orElseThrow(() -> new CustomException(QaErrorCode.QA_NOT_FOUND));
+
+		Long endpointId = qa.getEndpoint().getId();
+		Long teamId = qa.getEndpoint().getSnapshot().getTeam().getId();
+
+		ApiExecuteRequest request = new ApiExecuteRequest(
+			parseStringMap(qa.getPathVariables()),
+			parseStringMap(qa.getQueryParams()),
+			parseStringMap(qa.getHeaders()),
+			parseBody(qa.getBody())
+		);
+
+		ApiExecuteResponse response = apiExecuteService.execute(endpointId, teamId, request);
+		qa.updateIsSuccess(response.httpStatus() >= 200 && response.httpStatus() < 300);
+		return response;
 	}
 
 	private Map<String, String> parseStringMap(String json) {
