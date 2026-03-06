@@ -51,6 +51,9 @@ public class FlowImage {
 	}
 
 	public void markComplete() {
+		// 업로드 완료 시점에 서버가 검증한 정보들을 저장
 		this.status = UploadStatus.COMPLETE;
+
 	}
+
 }
