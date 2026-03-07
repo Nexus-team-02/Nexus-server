@@ -7,12 +7,22 @@ import { handleWellKnown } from './wellKnown';
 import * as client from './client';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
+const BASE_URL = (process.env.PUBLIC_BASE_URL ?? 'https://pingpongg.site').replace(/\/$/, '');
 
 const app = express();
 app.use(express.json());
 
 // OAuth well-known metadata (proxied from mcp-server so nginx can route /.well-known/ here)
 app.get('/.well-known/oauth-authorization-server', handleWellKnown);
+
+// OAuth Protected Resource Metadata (RFC 9728 / MCP OAuth 2025 spec)
+app.get('/.well-known/oauth-protected-resource', (_req: Request, res: Response) => {
+  res.json({
+    resource: `${BASE_URL}/mcp`,
+    authorization_servers: [`${BASE_URL}`],
+    bearer_methods_supported: ['header'],
+  });
+});
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {

@@ -11,6 +11,7 @@ import pingpong.backend.domain.team.Team;
 import pingpong.backend.domain.team.repository.TeamRepository;
 import pingpong.backend.global.auth.dto.OAuthTokenResponse;
 import pingpong.backend.global.auth.service.OAuthAuthorizationService;
+import pingpong.backend.global.exception.CustomException;
 
 import java.net.URI;
 import java.util.List;
@@ -375,20 +376,24 @@ public class OAuthController {
     }
 
     @PostMapping("/oauth/token")
-    public ResponseEntity<OAuthTokenResponse> token(
+    public ResponseEntity<?> token(
             @RequestParam(value = "grant_type") String grantType,
             @RequestParam(value = "code", required = false) String code,
             @RequestParam(value = "code_verifier", required = false) String codeVerifier,
             @RequestParam(value = "refresh_token", required = false) String refreshToken
     ) {
-        if ("authorization_code".equals(grantType)) {
-            OAuthTokenResponse response = oAuthAuthorizationService.exchangeCode(code, codeVerifier);
-            return ResponseEntity.ok(response);
-        } else if ("refresh_token".equals(grantType)) {
-            OAuthTokenResponse response = oAuthAuthorizationService.refreshAccessToken(refreshToken);
-            return ResponseEntity.ok(response);
+        try {
+            if ("authorization_code".equals(grantType)) {
+                return ResponseEntity.ok(oAuthAuthorizationService.exchangeCode(code, codeVerifier));
+            } else if ("refresh_token".equals(grantType)) {
+                return ResponseEntity.ok(oAuthAuthorizationService.refreshAccessToken(refreshToken));
+            }
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "unsupported_grant_type", "error_description", "Unsupported grant type: " + grantType));
+        } catch (CustomException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "invalid_grant", "error_description", e.getErrorCode().getMessage()));
         }
-        return ResponseEntity.badRequest().build();
     }
 
     private String escapeHtml(String s) {
