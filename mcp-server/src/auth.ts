@@ -9,6 +9,7 @@ if (!JWT_SECRET) {
 export interface McpContext {
   email: string;
   teamId: number;
+  token: string;
 }
 
 function getSecretKey(): Uint8Array {
@@ -37,7 +38,7 @@ export async function verifyMcpToken(token: string): Promise<McpContext> {
     throw new Error('Invalid MCP token claims');
   }
 
-  return { email, teamId };
+  return { email, teamId, token };
 }
 
 export async function authMiddleware(
@@ -61,7 +62,7 @@ export async function authMiddleware(
   const token = authorization.substring(7);
   try {
     req.mcpContext = await verifyMcpToken(token);
-    console.log(`[AUTH] Token verified - email: ${req.mcpContext.email}, teamId: ${req.mcpContext.teamId}`);
+    console.log(`[AUTH] Token verified - email: ${req.mcpContext.email}, teamId: ${req.mcpContext.teamId}, token length: ${token.length}`);
     next();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
