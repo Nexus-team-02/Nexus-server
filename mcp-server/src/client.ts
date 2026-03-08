@@ -8,26 +8,34 @@ export const springClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-export async function getQaFailures(teamId: number) {
+export async function getQaFailures(teamId: number, token: string) {
   const response = await springClient.get('/api/v1/qa/failures', {
     params: { teamId },
+    headers: { Authorization: `Bearer ${token}` },
   });
   return response.data;
 }
 
-export async function getTasks(teamId: number, status?: string) {
+export async function getTasks(teamId: number, token: string, status?: string) {
   const params: Record<string, unknown> = {};
   if (status) params['status'] = status;
-  const response = await springClient.get(`/api/v1/tasks/teams/${teamId}`, { params });
+  const response = await springClient.get(`/api/v1/tasks/teams/${teamId}`, {
+    params,
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return response.data;
 }
 
-export async function getTaskDetails(taskId: string) {
-  const response = await springClient.get(`/api/v1/tasks/${taskId}/details`);
+export async function getTaskDetails(taskId: string, token: string) {
+  const response = await springClient.get(`/api/v1/tasks/${taskId}/details`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return response.data;
 }
 
-export async function getApiSchema(endpointId: number) {
-  const response = await springClient.get(`/api/v1/endpoints/${endpointId}/schema`);
+export async function getApiSchema(endpointId: number, token: string) {
+  const response = await springClient.get(`/api/v1/endpoints/${endpointId}/schema`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return response.data;
 }
