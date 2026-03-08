@@ -66,11 +66,14 @@ app.all(
       '현재 팀의 QA 실패 케이스와 최신 실행 결과를 조회합니다.',
       {},
       async () => {
+        console.log(`[TOOL] get_qa_failures called - teamId: ${ctx.teamId}`);
         try {
-          const data = await client.getQaFailures(ctx.teamId);
+          const data = await client.getQaFailures(ctx.teamId, ctx.token);
+          console.log(`[TOOL] get_qa_failures succeeded`);
           return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          console.error(`[TOOL] get_qa_failures failed: ${message}`);
           return { content: [{ type: 'text', text: `오류가 발생했습니다: ${message}` }], isError: true };
         }
       }
@@ -82,11 +85,14 @@ app.all(
       '현재 팀의 Task 목록을 조회합니다. status 파라미터로 필터링 가능합니다.',
       { status: z.string().optional().describe('Task 상태 필터 (예: Backend, Frontend, Done)') },
       async (args: { status?: string }) => {
+        console.log(`[TOOL] get_tasks called - teamId: ${ctx.teamId}, status: ${args.status ?? 'none'}`);
         try {
-          const data = await client.getTasks(ctx.teamId, args.status);
+          const data = await client.getTasks(ctx.teamId, ctx.token, args.status);
+          console.log(`[TOOL] get_tasks succeeded`);
           return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          console.error(`[TOOL] get_tasks failed: ${message}`);
           return { content: [{ type: 'text', text: `오류가 발생했습니다: ${message}` }], isError: true };
         }
       }
@@ -98,11 +104,14 @@ app.all(
       'Task ID로 Task 상세 정보(flows, 연결된 endpoints, 요구사항)를 조회합니다.',
       { task_id: z.string().describe('Task의 Notion Page ID') },
       async (args: { task_id: string }) => {
+        console.log(`[TOOL] get_task_details called - task_id: ${args.task_id}`);
         try {
-          const data = await client.getTaskDetails(args.task_id);
+          const data = await client.getTaskDetails(args.task_id, ctx.token);
+          console.log(`[TOOL] get_task_details succeeded`);
           return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          console.error(`[TOOL] get_task_details failed: ${message}`);
           return { content: [{ type: 'text', text: `오류가 발생했습니다: ${message}` }], isError: true };
         }
       }
@@ -114,11 +123,14 @@ app.all(
       'Endpoint ID로 API 엔드포인트의 상세 스키마(parameters, requestBody, responses)를 조회합니다.',
       { endpoint_id: z.number().describe('Endpoint ID') },
       async (args: { endpoint_id: number }) => {
+        console.log(`[TOOL] get_api_schema called - endpoint_id: ${args.endpoint_id}`);
         try {
-          const data = await client.getApiSchema(args.endpoint_id);
+          const data = await client.getApiSchema(args.endpoint_id, ctx.token);
+          console.log(`[TOOL] get_api_schema succeeded`);
           return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
+          console.error(`[TOOL] get_api_schema failed: ${message}`);
           return { content: [{ type: 'text', text: `오류가 발생했습니다: ${message}` }], isError: true };
         }
       }
