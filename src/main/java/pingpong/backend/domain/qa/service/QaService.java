@@ -99,8 +99,10 @@ public class QaService {
 
 	@Transactional
 	public QaScenarioResponse createQaCases(Long endpointId) {
+
 		// 1. 데이터 수집 (기존 collectData 호출)
 		EndpointAggregate spec = collectData(endpointId);
+		Endpoint endpoint = spec.endpoint();
 
 		// 2. LlmQaService를 통해 시나리오 생성 요청 (Step 1 & Step 2 포함)
 		LlmQaService.QaOutcome outcome = llmQaService.generateScenarios(spec);
@@ -122,58 +124,56 @@ public class QaService {
 		log.info("QA-GEN: 시나리오 생성 성공! 개수: {} (endpointId={})",
 			result.scenarios().size(), endpointId);
 
-		// 5. DB 저장 로직 (선택 사항)
-		// saveScenariosToDb(endpointId, result);
+		// 5. DB 저장 로직 실행
+		saveScenariosToDb(endpoint, result);
+
+		log.info("QA-GEN: 성공! {}개의 시나리오가 DB에 저장되었습니다. (endpointId={})",
+			result.scenarios().size(), endpointId);
 
 		return result;
 	}
 
+	/**
+	 * AI 응답 결과를 QaCase 엔티티로 변환하여 일괄 저장
+	 */
+	private void saveScenariosToDb(Endpoint endpoint, QaScenarioResponse result) {
+		List<QaCase> qaCases = result.scenarios().stream()
+			.map(scenario -> {
+				var req = scenario.requestData();
 
+				// Map 객체들을 JSON 문자열로 변환 (DB의 TEXT/LONGTEXT 컬럼 대응)
+				String headersJson = toJsonString(req.headers());
+				String bodyJson = toJsonString(req.body());
+
+				// 만약 RequestData에 pathVariables나 queryParams가 명시적으로 구분되어 있지 않다면,
+				// 현재는 headers와 body 위주로 저장하고 나머지는 null 처리하거나 추후 확장이 가능합니다.
+				return QaCase.create(
+					endpoint,
+					scenario.description(),
+					null,        // pathVariables (필요 시 AI 응답 구조에 추가)
+					null,        // queryParams (필요 시 AI 응답 구조에 추가)
+					headersJson,
+					bodyJson
+				);
+			})
+			.toList();
+
+		qaCaseRepository.saveAll(qaCases);
+	}
 
 	/**
-	 * JSON 문자열을 DTO 객체로 안전하게 변환
+	 * 객체를 JSON 문자열로 안전하게 변환
 	 */
-	private QaScenarioResponse tryParse(String raw) {
-		if (raw == null || raw.isBlank()) return null;
-
-		// 마크다운 코드 블록(```json)이 포함되어 있다면 순수 JSON만 추출
-		String json = extractJson(raw);
+	private String toJsonString(Object obj) {
+		if (obj == null) return null;
 		try {
-			return objectMapper.readValue(json, QaScenarioResponse.class);
-		} catch (Exception e) {
-			log.debug("QA-GEN: JSON 파싱 에러 - {}", e.getMessage());
+			return objectMapper.writeValueAsString(obj);
+		} catch (JsonProcessingException e) {
+			log.warn("QA-GEN: JSON 변환 실패 - {}", e.getMessage());
 			return null;
 		}
 	}
 
-	/**
-	 * AI에게 깨진 JSON을 다시 고쳐달라고 요청 (Repair)
-	 */
-	private String repairJson(String raw) {
-		String repairPrompt = String.format("""
-            아래 JSON 데이터가 손상되었습니다. 
-            다른 설명 없이 오직 유효한 JSON 코드 블록(```json ... ```)만 반환하세요.
-            
-            손상된 데이터:
-            %s
-            """, raw);
-
-		try {
-			return qaClient.prompt()
-				.user(repairPrompt)
-				.call()
-				.content();
-		} catch (Exception e) {
-			log.error("QA-GEN: Repair 호출 실패", e);
-			return "{}";
-		}
-	}
-
-	private String extractJson(String raw) {
-		int start = raw.indexOf('{');
-		int end = raw.lastIndexOf('}');
-		return (start >= 0 && end > start) ? raw.substring(start, end + 1) : raw;
-	}
 
 	private EndpointAggregate collectData(Long endpointId) {
 		//관련 정보 수집
