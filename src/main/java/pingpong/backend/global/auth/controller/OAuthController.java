@@ -688,7 +688,7 @@ public class OAuthController {
                 <body>
                   <div class="card">
                     <div class="icon">🚫</div>
-                    <div class="title">잘못된 redirect_uri</div>
+                    <div class="title">오류가 발생하였습니다</div>
                     <div class="desc">OAuth 인가 요청이 거부되었습니다.<br>MCP 클라이언트 설정을 확인하거나 재등록해주세요.</div>
                     <div class="reason">%s</div>
                   </div>
