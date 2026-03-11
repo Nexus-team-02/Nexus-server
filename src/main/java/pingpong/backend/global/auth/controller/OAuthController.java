@@ -12,6 +12,7 @@ import pingpong.backend.domain.team.repository.TeamRepository;
 import pingpong.backend.global.auth.dto.OAuthTokenResponse;
 import pingpong.backend.global.auth.service.OAuthAuthorizationService;
 import pingpong.backend.global.exception.CustomException;
+import pingpong.backend.global.redis.OAuthClientCacheUtil;
 
 import java.net.URI;
 import java.util.List;
@@ -25,6 +26,7 @@ public class OAuthController {
 
     private final OAuthAuthorizationService oAuthAuthorizationService;
     private final TeamRepository teamRepository;
+    private final OAuthClientCacheUtil oAuthClientCacheUtil;
 
     @Value("${PUBLIC_BASE_URL:https://pingpongg.site}")
     private String publicBaseUrl;
@@ -45,11 +47,24 @@ public class OAuthController {
 
     @PostMapping("/oauth/register")
     public ResponseEntity<Map<String, Object>> registerClient(@RequestBody Map<String, Object> body) {
+        Object rawUris = body.get("redirect_uris");
+        if (!(rawUris instanceof List<?> uriList) || uriList.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "invalid_client_metadata",
+                            "error_description", "redirect_uris is required and must not be empty"));
+        }
+        List<String> redirectUris = uriList.stream()
+                .filter(u -> u instanceof String)
+                .map(u -> (String) u)
+                .toList();
+
         String clientId = UUID.randomUUID().toString();
+        oAuthClientCacheUtil.saveClient(clientId, redirectUris);
+
         Map<String, Object> response = new java.util.LinkedHashMap<>();
         response.put("client_id", clientId);
         if (body.containsKey("client_name")) response.put("client_name", body.get("client_name"));
-        if (body.containsKey("redirect_uris")) response.put("redirect_uris", body.get("redirect_uris"));
+        response.put("redirect_uris", redirectUris);
         response.put("grant_types", body.getOrDefault("grant_types", List.of("authorization_code", "refresh_token")));
         response.put("response_types", body.getOrDefault("response_types", List.of("code")));
         response.put("token_endpoint_auth_method", "none");
@@ -58,12 +73,13 @@ public class OAuthController {
 
     @GetMapping("/oauth/authorize")
     public ResponseEntity<String> showAuthorizeForm(
+            @RequestParam(value = "client_id", required = false) String clientId,
             @RequestParam(value = "redirect_uri", required = false) String redirectUri,
             @RequestParam(value = "code_challenge", required = false) String codeChallenge,
             @RequestParam(value = "state", required = false) String state,
             @RequestParam(value = "error", required = false) String error
     ) {
-        if (redirectUri == null || codeChallenge == null) {
+        if (redirectUri == null || codeChallenge == null || clientId == null) {
             String errorHtml = """
                     <!DOCTYPE html>
                     <html lang="ko">
@@ -98,6 +114,18 @@ public class OAuthController {
                     </html>
                     """;
             return ResponseEntity.badRequest().contentType(MediaType.TEXT_HTML).body(errorHtml);
+        }
+
+        List<String> registeredUris = oAuthClientCacheUtil.getRedirectUris(clientId)
+                .orElse(null);
+        if (registeredUris == null) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_HTML)
+                    .body(buildRedirectUriErrorPage("client_id를 찾을 수 없습니다. MCP 클라이언트를 재등록해주세요."));
+        }
+        String redirectUriValidationError = validateRedirectUri(redirectUri, registeredUris);
+        if (redirectUriValidationError != null) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_HTML)
+                    .body(buildRedirectUriErrorPage(redirectUriValidationError));
         }
 
         List<Team> teams = teamRepository.findAll();
@@ -301,6 +329,7 @@ public class OAuthController {
                     %s
 
                     <form method="POST" action="/oauth/authorize">
+                      <input type="hidden" name="client_id" value="%s">
                       <input type="hidden" name="redirect_uri" value="%s">
                       <input type="hidden" name="code_challenge" value="%s">
                       <input type="hidden" name="state" value="%s">
@@ -334,6 +363,7 @@ public class OAuthController {
                 </html>
                 """.formatted(
                 errorBlock,
+                escapeHtml(clientId),
                 escapeHtml(redirectUri),
                 escapeHtml(codeChallenge),
                 state != null ? escapeHtml(state) : "",
@@ -344,7 +374,8 @@ public class OAuthController {
     }
 
     @PostMapping("/oauth/authorize")
-    public ResponseEntity<Void> processAuthorize(
+    public ResponseEntity<String> processAuthorize(
+            @RequestParam("client_id") String clientId,
             @RequestParam("email") String email,
             @RequestParam("password") String password,
             @RequestParam("teamId") Long teamId,
@@ -352,8 +383,21 @@ public class OAuthController {
             @RequestParam("code_challenge") String codeChallenge,
             @RequestParam(value = "state", required = false) String state
     ) {
+        List<String> registeredUris = oAuthClientCacheUtil.getRedirectUris(clientId)
+                .orElse(null);
+        if (registeredUris == null) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_HTML)
+                    .body(buildRedirectUriErrorPage("client_id를 찾을 수 없습니다. MCP 클라이언트를 재등록해주세요."));
+        }
+        String redirectUriValidationError = validateRedirectUri(redirectUri, registeredUris);
+        if (redirectUriValidationError != null) {
+            return ResponseEntity.badRequest().contentType(MediaType.TEXT_HTML)
+                    .body(buildRedirectUriErrorPage(redirectUriValidationError));
+        }
+
         if (!oAuthAuthorizationService.verifyCredentials(email, password)) {
-            String location = "/oauth/authorize?redirect_uri=" + encode(redirectUri)
+            String location = "/oauth/authorize?client_id=" + encode(clientId)
+                    + "&redirect_uri=" + encode(redirectUri)
                     + "&code_challenge=" + encode(codeChallenge)
                     + (state != null ? "&state=" + encode(state) : "")
                     + "&error=invalid_credentials";
@@ -394,6 +438,73 @@ public class OAuthController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "invalid_grant", "error_description", e.getErrorCode().getMessage()));
         }
+    }
+
+    private String validateRedirectUri(String redirectUri, List<String> registeredUris) {
+        String incomingSchemeHost = extractSchemeHost(redirectUri);
+        if (incomingSchemeHost == null) {
+            return "redirect_uri 형식이 올바르지 않습니다: " + redirectUri;
+        }
+        boolean matched = registeredUris.stream()
+                .map(this::extractSchemeHost)
+                .filter(sh -> sh != null)
+                .anyMatch(incomingSchemeHost::equals);
+        if (!matched) {
+            return "등록되지 않은 redirect_uri입니다: " + redirectUri;
+        }
+        return null;
+    }
+
+    private String extractSchemeHost(String rawUri) {
+        try {
+            URI uri = new URI(rawUri);
+            if (uri.getScheme() == null || uri.getHost() == null) return null;
+            return uri.getScheme() + "://" + uri.getHost();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String buildRedirectUriErrorPage(String reason) {
+        return """
+                <!DOCTYPE html>
+                <html lang="ko">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Nexus MCP</title>
+                  <style>
+                    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                    body {
+                      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+                      background: #FDF6F0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                      padding: 24px;
+                    }
+                    .card {
+                      background: #fff; border-radius: 20px;
+                      box-shadow: 0 4px 6px -1px rgba(217,119,87,0.08), 0 12px 32px -4px rgba(217,119,87,0.12);
+                      padding: 40px 36px; width: 100%%; max-width: 480px; text-align: center;
+                    }
+                    .icon { font-size: 40px; margin-bottom: 16px; }
+                    .title { font-size: 20px; font-weight: 700; color: #1a1a1a; margin-bottom: 12px; }
+                    .desc { font-size: 14px; color: #888; line-height: 1.6; margin-bottom: 16px; }
+                    .reason {
+                      font-size: 13px; color: #C04F2A; background: #FFF0EC;
+                      border: 1px solid #FDDDD4; border-radius: 10px;
+                      padding: 10px 14px; word-break: break-all;
+                    }
+                  </style>
+                </head>
+                <body>
+                  <div class="card">
+                    <div class="icon">🚫</div>
+                    <div class="title">잘못된 redirect_uri</div>
+                    <div class="desc">OAuth 인가 요청이 거부되었습니다.<br>MCP 클라이언트 설정을 확인하거나 재등록해주세요.</div>
+                    <div class="reason">%s</div>
+                  </div>
+                </body>
+                </html>
+                """.formatted(escapeHtml(reason));
     }
 
     private String escapeHtml(String s) {
