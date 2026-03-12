@@ -71,10 +71,15 @@ public class SwaggerDiffService {
 		SwaggerSnapshot prevSnapshot = prevSnapshotOpt.get();
 
 		// Compare using openapi-diff
-		ChangedOpenApi diff = OpenApiCompare.fromContents(
-			prevSnapshot.getRawJson(),
-			currSnapshot.getRawJson()
-		);
+		ChangedOpenApi diff;
+		try {
+			diff = OpenApiCompare.fromContents(
+				prevSnapshot.getRawJson(),
+				currSnapshot.getRawJson()
+			);
+		} catch (Exception e) {
+			throw new CustomException(SwaggerErrorCode.JSON_PROCESSING_EXCEPTION);
+		}
 
 		// Check if endpoint is in newEndpoints (newly added)
 		for (org.openapitools.openapidiff.core.model.Endpoint ep :
