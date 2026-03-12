@@ -3,6 +3,10 @@ package pingpong.backend.domain.team.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pingpong.backend.domain.flow.Flow;
+import pingpong.backend.domain.flow.FlowImage;
+import pingpong.backend.domain.flow.repository.FlowImageRepository;
+import pingpong.backend.domain.flow.repository.FlowRepository;
 import pingpong.backend.domain.member.Member;
 import pingpong.backend.domain.member.MemberErrorCode;
 import pingpong.backend.domain.member.service.MemberService;
@@ -16,8 +20,10 @@ import pingpong.backend.domain.team.repository.MemberTeamRepository;
 import pingpong.backend.domain.team.repository.TeamRepository;
 import pingpong.backend.global.exception.CustomException;
 import pingpong.backend.global.exception.ErrorCode;
+import pingpong.backend.global.storage.service.PresignedUrlService;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +35,9 @@ public class TeamService {
     private final MemberService memberService;
     private final NotionRepository notionRepository;
     private final SsrfGuard ssrfGuard;
+    private final FlowRepository flowRepository;
+    private final FlowImageRepository flowImageRepository;
+    private final PresignedUrlService presignedUrlService;
 
     /**
      * 팀 생성 + 생성자 자동 참여 (요구사항 1 반영)
@@ -104,9 +113,34 @@ public class TeamService {
                 .distinct()
                 .toList();
 
-        return teamRepository.findAllById(teamIds).stream()
+        List<Team> teams = teamRepository.findAllById(teamIds);
+
+        Map<Long, Flow> firstFlowByTeamId = flowRepository.findFirstFlowPerTeam(teamIds)
+                .stream()
+                .collect(Collectors.toMap(f -> f.getTeam().getId(), Function.identity()));
+
+        List<Long> flowIds = firstFlowByTeamId.values().stream()
+                .map(Flow::getId)
+                .toList();
+
+        Map<Long, FlowImage> thumbnailByFlowId = flowIds.isEmpty()
+                ? Map.of()
+                : flowImageRepository.findFirstImagePerFlow(flowIds).stream()
+                        .collect(Collectors.toMap(fi -> fi.getFlow().getId(), Function.identity()));
+
+        return teams.stream()
                 .sorted((a, b) -> Long.compare(a.getId(), b.getId()))
-                .map(MyTeamResponse::of)
+                .map(team -> {
+                    Flow firstFlow = firstFlowByTeamId.get(team.getId());
+                    String thumbnailUrl = null;
+                    if (firstFlow != null) {
+                        FlowImage thumbnail = thumbnailByFlowId.get(firstFlow.getId());
+                        if (thumbnail != null) {
+                            thumbnailUrl = presignedUrlService.getGetS3Url(thumbnail.getObjectKey()).presignedUrl();
+                        }
+                    }
+                    return MyTeamResponse.of(team, thumbnailUrl);
+                })
                 .toList();
     }
 
