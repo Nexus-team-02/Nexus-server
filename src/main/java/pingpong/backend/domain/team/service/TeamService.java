@@ -1,6 +1,7 @@
 package pingpong.backend.domain.team.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pingpong.backend.domain.flow.Flow;
@@ -11,6 +12,7 @@ import pingpong.backend.domain.member.Member;
 import pingpong.backend.domain.member.MemberErrorCode;
 import pingpong.backend.domain.member.service.MemberService;
 import pingpong.backend.domain.notion.repository.NotionRepository;
+import pingpong.backend.domain.swagger.event.SwaggerSyncInitEvent;
 import pingpong.backend.domain.swagger.service.SsrfGuard;
 import pingpong.backend.domain.team.MemberTeam;
 import pingpong.backend.domain.team.Team;
@@ -35,6 +37,7 @@ public class TeamService {
     private final MemberService memberService;
     private final NotionRepository notionRepository;
     private final SsrfGuard ssrfGuard;
+    private final ApplicationEventPublisher eventPublisher;
     private final FlowRepository flowRepository;
     private final FlowImageRepository flowImageRepository;
     private final PresignedUrlService presignedUrlService;
@@ -58,6 +61,10 @@ public class TeamService {
         memberTeamRepository.save(
                 MemberTeam.of(savedTeam.getId(), creator.getId(), req.creatorRole())
         );
+
+        if (req.swagger() != null && !req.swagger().isBlank()) {
+            eventPublisher.publishEvent(new SwaggerSyncInitEvent(savedTeam.getId(), creator));
+        }
 
         return new TeamCreateResponse(savedTeam.getId());
     }
