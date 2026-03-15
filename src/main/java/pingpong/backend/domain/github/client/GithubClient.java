@@ -82,7 +82,7 @@ public class GithubClient {
 				(String)commitDetail.get("message"),
 				(String)authorDetail.get("login"),
 				(String)authorDetail.get("avatar_url"),
-				(String)((Map<String, Object>)commitDetail.get("authorr")).get("date")
+				(String)((Map<String, Object>)commitDetail.get("author")).get("date")
 			);
 
 			//파일 목록 및 패치 파싱
