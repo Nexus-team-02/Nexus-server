@@ -2,6 +2,7 @@ package pingpong.backend.domain.swagger.controller;
 
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import pingpong.backend.domain.github.service.GithubService;
 import pingpong.backend.domain.member.Member;
+import pingpong.backend.domain.qa.dto.SwaggerChangedEvent;
 import pingpong.backend.domain.qa.service.QaService;
 import pingpong.backend.domain.swagger.dto.request.ApiExecuteRequest;
 import pingpong.backend.domain.swagger.dto.response.ApiExecuteResponse;
@@ -29,6 +31,7 @@ import pingpong.backend.domain.swagger.dto.response.EndpointDiffDetailResponse;
 import pingpong.backend.domain.swagger.dto.response.EndpointGroupResponse;
 import pingpong.backend.domain.swagger.dto.response.EndpointResponse;
 import pingpong.backend.domain.swagger.dto.response.SyncResultResponse;
+import pingpong.backend.domain.swagger.event.SwaggerSyncInitEvent;
 import pingpong.backend.domain.swagger.service.ApiExecuteService;
 import pingpong.backend.domain.swagger.service.EndpointService;
 import pingpong.backend.domain.swagger.service.SwaggerService;
@@ -45,6 +48,8 @@ public class SwaggerController {
 	private final EndpointService endpointService;
 	private final GithubService githubService;
 	private final QaService qaService;
+	private final ApplicationEventPublisher eventPublisher;
+
 
 	@Hidden
 	@GetMapping("/api/v1/swagger/{teamId}")
@@ -87,7 +92,7 @@ public class SwaggerController {
 		boolean swaggerChanged=swaggerService.syncSwagger(teamId, currentMember);
 		boolean githubChanged=githubService.syncGithubBranch(teamId);
 		if(swaggerChanged){
-			qaService.createQaCases;
+			eventPublisher.publishEvent(new SwaggerChangedEvent(teamId,currentMember));
 		}
 		return SuccessResponse.ok(SyncResultResponse.of(swaggerChanged, githubChanged));
 	}
