@@ -82,7 +82,7 @@ public class SwaggerController {
        1. Swagger(OpenAPI): 최신 스펙 해시를 비교하여 변경 감지 시 Endpoint 정보를 정규화하여 업데이트합니다.
        2. GitHub: 최신 커밋 SHA를 확인하고, 해당 커밋 SHA를 저장합니다.
        
-       ※ 이 API는 데이터를 갱신(Sync)하는 역할만 수행하며, 실제 변경 내역은 각 도메인의 Diff 조회 API(GET `/teams/{teamId}/github/sync-result`)를 통해 확인하시기 바랍니다.
+       ※ 이 API는 데이터를 갱신(Sync)하는 역할만 수행하며, 실제 변경 내역은 각 도메인의 Diff 조회 API를 통해 확인하시기 바랍니다.
        """
 	)
 	public SuccessResponse<SyncResultResponse> syncSwaggerAndCode(

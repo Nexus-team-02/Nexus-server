@@ -290,7 +290,7 @@ public class SwaggerService {
 		SwaggerSnapshot latest = swaggerSnapshotRepository.findTopByTeamIdOrderByIdDesc(teamId)
 			.orElseThrow(() -> new CustomException(SwaggerErrorCode.ENDPOINT_NOT_FOUND));
 
-		// 2. 해당 스냅샷에 속한 모든 엔드포인트(Endpoint) 목록을 가져옴
+		// 2. 해당 스냅샷에 속한 모든 엔드포인트(Endpoint) 목록을 가져옴$
 		List<Endpoint> allEndpoints = endpointRepository.findBySnapshotId(latest.getId());
 
 		// 3. 엔드포인트들을 DTO로 변환하고, Tag(Swagger의 그룹)별로 그룹화(Grouping)
