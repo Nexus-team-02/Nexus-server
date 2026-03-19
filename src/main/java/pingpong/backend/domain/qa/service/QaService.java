@@ -100,6 +100,7 @@ public class QaService {
 				tagOrDefault(endpoint.getTag()),
 				endpoint.getPath(),
 				endpoint.getMethod(),
+				qa.getScenarioName(),
 				qa.getDescription(),
 				qa.getIsSuccess()
 			))
@@ -223,8 +224,8 @@ public class QaService {
 			request.scenarioName(),
 			request.testType(),
 			request.description(),
-			null, // pathVariables (필요 시 reqData에서 추출)
-			null, // queryParams (필요 시 reqData에서 추출)
+			serializeSafe(reqData.pathVariables()), // pathVariables (필요 시 reqData에서 추출)
+			serializeSafe(reqData.queryParams()), // queryParams (필요 시 reqData에서 추출)
 			reqData.headers(),
 			bodyNode,
 			expRes.statusCode()
@@ -267,16 +268,14 @@ public class QaService {
 				Map<String,String> headers=req.headers();
 
 				JsonNode bodyNode=objectMapper.valueToTree(req.body());
-				String pathVars = null;
-				String queryParams = null;
 
 				return QaCase.create(
 					endpoint,
 					scenario.scenarioName(), // scenarioName 추가
 					scenario.testType(),     // testType 추가
 					scenario.description(),
-					pathVars,
-					queryParams,
+					serializeSafe(req.pathVariables()),
+					serializeSafe(req.queryParams()),
 					headers,
 					bodyNode,                // JsonNode 타입
 					expected.statusCode());
