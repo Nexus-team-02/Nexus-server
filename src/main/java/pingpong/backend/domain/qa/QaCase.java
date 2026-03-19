@@ -99,4 +99,18 @@ public class QaCase {
 	public void updateIsSuccess(boolean isSuccess) {
 		this.isSuccess = isSuccess;
 	}
+	// QaCase.java 엔티티 내부에 추가
+	public void updateTestData(
+		String pathVariables,
+		String queryParams,
+		Map<String, String> headers,
+		JsonNode body
+	) {
+		this.pathVariables = pathVariables;
+		this.queryParams = queryParams;
+		this.headers = headers;
+		this.body = body;
+		// 수정이 발생했으므로 성공 여부를 초기화하거나 최신화할 준비를 합니다.
+		this.createdAt = LocalDateTime.now();
+	}
 }

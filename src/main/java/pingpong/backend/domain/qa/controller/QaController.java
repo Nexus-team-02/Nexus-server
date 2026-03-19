@@ -18,6 +18,7 @@ import pingpong.backend.domain.qa.dto.EndpointQaTagGroupResponse;
 import pingpong.backend.domain.qa.dto.QaCaseDetailDto;
 import pingpong.backend.domain.qa.dto.QaCaseSummaryDto;
 import pingpong.backend.domain.qa.dto.QaExecuteResultDto;
+import pingpong.backend.domain.qa.dto.QaReRunRequest;
 import pingpong.backend.domain.qa.dto.QaScenarioDetail;
 import pingpong.backend.domain.qa.dto.QaScenarioResponse;
 import pingpong.backend.domain.qa.dto.QaTeamFailureResponse;
@@ -68,6 +69,16 @@ public class QaController {
 	)
 	public SuccessResponse<QaCaseDetailDto> getQaCaseDetail(@PathVariable Long qaId) {
 		return SuccessResponse.ok(qaService.getQaCaseDetail(qaId));
+	}
+
+	@PostMapping("/{qaId}/re-run")
+	@Operation(summary = "QA 케이스 수정 후 재실행", description = "화면에서 수정한 데이터를 바탕으로 QA를 재실행하고 결과를 저장합니다.")
+	public SuccessResponse<QaExecuteResultDto> reRunQaCase(
+		@PathVariable Long qaId,
+		@RequestBody QaReRunRequest reRunData,
+		@RequestHeader(value = "X-Proxy-Authorization", required = false) String proxyAuthorization
+	) {
+		return SuccessResponse.ok(qaService.reRunQaCase(qaId, reRunData, proxyAuthorization));
 	}
 
 	@GetMapping("/tags")

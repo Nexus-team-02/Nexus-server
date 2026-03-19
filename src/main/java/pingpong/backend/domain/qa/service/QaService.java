@@ -27,6 +27,7 @@ import pingpong.backend.domain.qa.dto.EndpointSecurityDto;
 import pingpong.backend.domain.qa.dto.QaCaseDetailDto;
 import pingpong.backend.domain.qa.dto.QaCaseSummaryDto;
 import pingpong.backend.domain.qa.dto.QaExecuteResultDto;
+import pingpong.backend.domain.qa.dto.QaReRunRequest;
 import pingpong.backend.domain.qa.dto.QaScenarioDetail;
 import pingpong.backend.domain.qa.dto.QaScenarioResponse;
 import pingpong.backend.domain.qa.dto.QaTeamFailureResponse;
@@ -150,7 +151,8 @@ public class QaService {
 				parseJsonToMap(r.getResponseHeaders()),
 				parseJsonToNode(r.getResponseBody()),
 				r.getExecutedAt(),
-				r.getDurationMs()
+				r.getDurationMs(),
+				qaCase.getExpectedStatusCode()
 			))
 			.orElse(null);
 
@@ -301,6 +303,54 @@ public class QaService {
 	}
 
 	@Transactional
+	public QaExecuteResultDto reRunQaCase(Long qaId, QaReRunRequest reRunData, String proxyAuthorization) {
+		// 1. 기존 QA 케이스 정보 조회 (엔드포인트 정보 참조용)
+		QaCase qa = qaCaseRepository.findById(qaId)
+			.orElseThrow(() -> new CustomException(QaErrorCode.QA_NOT_FOUND));
+
+		// 2. 화면에서 넘어온 수정 데이터로 DB 업데이트 (기존 엔티티 필드 갱신)
+		// pathVariables와 queryParams가 String(JSON)이라면 여기서 직렬화 처리
+		qa.updateTestData(
+			serializeToJson(reRunData.pathVariables()),
+			serializeToJson(reRunData.queryParams()),
+			reRunData.headers(),
+			reRunData.body()
+		);
+
+		// 3. 기존의 실행 로직을 그대로 호출 (재사용!)
+		// 이미 엔티티가 업데이트되었으므로 executeQaCase는 수정된 데이터를 읽어서 실행합니다.
+		return executeQaCase(qaId, proxyAuthorization);
+	}
+
+	private QaExecuteResultDto handleExecuteFailure(QaCase qa, Exception e, long durationMs) {
+		log.error("QA_EXECUTE_FAILED: qaId={}, error={}", qa.getId(), e.getMessage());
+
+		// 1. QA 케이스의 최신 상태를 '실패'로 업데이트
+		qa.updateIsSuccess(false);
+
+		// 2. 실패 이력 생성 및 저장
+		// httpStatus는 실행 자체가 실패했으므로 보통 500이나 0으로 기록합니다.
+		QaExecuteResult result = QaExecuteResult.createFailed(
+			qa,
+			"Execution Error: " + e.getMessage(),
+			durationMs
+		);
+		qaExecuteResultRepository.save(result);
+
+		// 3. 실패 결과 DTO 반환
+		return new QaExecuteResultDto(
+			result.getId(),
+			500, // 통신 실패 시 기본 에러 코드
+			false,
+			null, // 헤더 없음
+			objectMapper.valueToTree(Map.of("error", e.getMessage())), // 에러 메시지를 JsonNode로 변환
+			result.getExecutedAt(),
+			result.getDurationMs(),
+			qa.getExpectedStatusCode()
+		);
+	}
+
+	@Transactional
 	public QaExecuteResultDto executeQaCase(Long qaId, String proxyAuthorization) {
 		QaCase qa = qaCaseRepository.findById(qaId)
 			.orElseThrow(() -> new CustomException(QaErrorCode.QA_NOT_FOUND));
@@ -320,14 +370,24 @@ public class QaService {
 			ApiExecuteResponse response = apiExecuteService.execute(endpointId, teamId, request, proxyAuthorization);
 			long durationMs = System.currentTimeMillis() - startTime;
 
-			boolean isSuccess = response.httpStatus() >= 200 && response.httpStatus() < 300;
-			qa.updateIsSuccess(isSuccess);
+			// 성공 여부 판단 로직 변경
+			// 단순히 200번대가 아니라, '기대한 상태 코드'와 일치하는지 확인
+			int actualStatus = response.httpStatus();
+			int expectedStatus = qa.getExpectedStatusCode();
+
+			boolean isStatusMatch = (actualStatus == expectedStatus);
+
+			// 추가: 만약 바디 필드까지 엄격하게 검증하고 싶다면 여기에 추가 로직을 넣습니다.
+			// boolean isBodyMatch = checkBodyFields(response.body(), qa.getExpectedBodyFields());
+
+			boolean finalSuccess = isStatusMatch;
+			qa.updateIsSuccess(finalSuccess);
 
 			String headersJson = serializeToJson(response.responseHeaders());
 			String bodyJson = serializeToJson(response.body());
 
 			QaExecuteResult result = QaExecuteResult.create(
-				qa, response.httpStatus(), isSuccess, headersJson, bodyJson, durationMs
+				qa, response.httpStatus(), finalSuccess, headersJson, bodyJson, durationMs
 			);
 			qaExecuteResultRepository.save(result);
 
@@ -335,10 +395,11 @@ public class QaService {
 				result.getId(),
 				result.getHttpStatus(),
 				result.getIsSuccess(),
-				response.responseHeaders(),
+				null,
 				response.body(),
 				result.getExecutedAt(),
-				result.getDurationMs()
+				result.getDurationMs(),
+				qa.getExpectedStatusCode()
 			);
 		} catch (CustomException e) {
 			long durationMs = System.currentTimeMillis() - startTime;
@@ -354,7 +415,8 @@ public class QaService {
 				null,
 				result.getResponseBody(),
 				result.getExecutedAt(),
-				result.getDurationMs()
+				result.getDurationMs(),
+				qa.getExpectedStatusCode()
 			);
 		}
 	}
