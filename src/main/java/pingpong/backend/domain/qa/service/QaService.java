@@ -424,6 +424,7 @@ public class QaService {
 	 * @param proxyAuthorization
 	 * @return
 	 */
+	@Transactional
 	public QaBulkExecuteResponse executeBulkQaCases(List<Long> qaIds, String proxyAuthorization) {
 		List<QaExecuteResultDto> results = new ArrayList<>();
 		int successCount = 0;

@@ -12,7 +12,7 @@ import pingpong.backend.domain.qa.QaExecuteResult;
 public record QaExecuteResultDto(
 
 	@Schema(description = "실행 결과 ID")
-	Long id,
+	Long qaExecuteId,
 
 	@Schema(description = "HTTP 상태 코드")
 	int httpStatus,
@@ -46,7 +46,7 @@ public record QaExecuteResultDto(
 			result.getId(),
 			result.getHttpStatus(),
 			result.getIsSuccess(),
-			actualHeaders,
+			null,
 			actualBody,
 			result.getExecutedAt(),
 			result.getDurationMs(),
