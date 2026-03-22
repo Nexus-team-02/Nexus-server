@@ -60,11 +60,16 @@ public class Github {
 	@Column
 	private LocalDateTime updatedAt;
 
-	public static Github create(String repoOwner, String repoName, String branch,Team team) {
+
+
+	public static Github create(String repoOwner, String repoName, String branch,Team team,String lastHeadSha) {
 		return Github.builder()
 			.repoOwner(repoOwner)
 			.repoName(repoName)
 			.branch(branch)
+			.lastHeadSha(lastHeadSha)
+			.newHeadSha(lastHeadSha)
+			.lastSyncedAt(LocalDateTime.now())
 			.createdAt(LocalDateTime.now())
 			.team(team)
 			.build();
@@ -77,12 +82,12 @@ public class Github {
 		return this;
 	}
 
-	public void updateConfig(String repoOwner,String repoName,String branch){
+	public void updateConfig(String repoOwner,String repoName,String branch,String lastHeadSha){
 		this.repoOwner = repoOwner;
 		this.repoName = repoName;
 		this.branch = (branch==null||branch.isBlank())?"main":branch;
-		this.lastSyncedAt=null;
-		this.lastHeadSha=null;
-		this.newHeadSha=null;
+		this.lastSyncedAt=LocalDateTime.now();
+		this.lastHeadSha=lastHeadSha;
+		this.newHeadSha=lastHeadSha;
 	}
 }

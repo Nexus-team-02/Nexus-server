@@ -9,6 +9,7 @@ import pingpong.backend.domain.flow.FlowImage;
 import pingpong.backend.domain.flow.repository.FlowImageRepository;
 import pingpong.backend.domain.flow.repository.FlowRepository;
 import pingpong.backend.domain.github.Github;
+import pingpong.backend.domain.github.client.GithubClient;
 import pingpong.backend.domain.github.repository.GithubRepository;
 import pingpong.backend.domain.github.service.GithubUrlParser;
 import pingpong.backend.domain.member.Member;
@@ -46,6 +47,7 @@ public class TeamService {
     private final FlowImageRepository flowImageRepository;
     private final PresignedUrlService presignedUrlService;
     private final GithubRepository githubRepository;
+    private final GithubClient githubClient;
 
     /**
      * 팀 생성 + 생성자 자동 참여 (요구사항 1 반영)
@@ -68,7 +70,9 @@ public class TeamService {
         );
 
         GithubUrlParser.RepoInfo repoInfo= GithubUrlParser.parse(req.github());
-        Github github=Github.create(repoInfo.owner(),repoInfo.repo(),req.githubBranch(),savedTeam);
+
+        String latestSha=githubClient.getLatestHeadSha(repoInfo.owner(), repoInfo.repo(),req.githubBranch());
+        Github github=Github.create(repoInfo.owner(),repoInfo.repo(),req.githubBranch(),savedTeam,latestSha);
         githubRepository.save(github);
 
         if (req.swagger() != null && !req.swagger().isBlank()) {
