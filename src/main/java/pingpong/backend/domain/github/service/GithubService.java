@@ -89,15 +89,16 @@ public class GithubService {
 				throw new CustomException(GithubErrorCode.REPOSITORY_NOT_FOUND);
 			}
 
-			github.updateConfig(repoInfo.owner(), repoInfo.repo(), request.branch());
+			String lastHeadSha=githubClient.getLatestHeadSha(repoInfo.owner(), repoInfo.repo(), request.branch());
+			github.updateConfig(repoInfo.owner(), repoInfo.repo(), request.branch(),lastHeadSha);
 			team.updateGithub(request.url());
 		}else{
 			boolean isValid = githubClient.validateBranch(github.getRepoOwner(), github.getRepoName(), request.branch());
 			if (!isValid) {
 				throw new CustomException(GithubErrorCode.REPOSITORY_NOT_FOUND);
 			}
-
-			github.updateConfig(github.getRepoOwner(), github.getRepoName(), request.branch());
+			String lastHeadSha=githubClient.getLatestHeadSha(github.getRepoOwner(), github.getRepoName(), request.branch());
+			github.updateConfig(github.getRepoOwner(), github.getRepoName(), request.branch(),lastHeadSha);
 		}
 	}
 
