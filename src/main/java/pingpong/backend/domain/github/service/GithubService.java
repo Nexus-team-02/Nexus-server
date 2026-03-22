@@ -47,6 +47,7 @@ public class GithubService {
 			.toList();
 		return new BranchListResponse(items);
 	}
+	//더미더미
 
 	@Transactional
 	public void configGithub(Long teamId, GithubConfigRequest request){
