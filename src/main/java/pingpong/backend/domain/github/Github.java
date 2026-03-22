@@ -60,6 +60,8 @@ public class Github {
 	@Column
 	private LocalDateTime updatedAt;
 
+
+
 	public static Github create(String repoOwner, String repoName, String branch,Team team,String lastHeadSha) {
 		return Github.builder()
 			.repoOwner(repoOwner)
