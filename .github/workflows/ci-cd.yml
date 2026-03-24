@@ -157,6 +157,8 @@ jobs:
             export AWS_REGION='ap-northeast-2'
             export JWT_SECRET='${{ secrets.JWT_SECRET }}'
             export PUBLIC_BASE_URL='${{ secrets.PUBLIC_BASE_URL }}'
-  
+            export SENTRY_DSN='${{ secrets.SENTRY_DSN }}'
+            export DISCORD_WEBHOOK_URL='${{ secrets.DISCORD_WEBHOOK_URL }}'
+
             chmod +x /home/${{ secrets.PROD_EC2_USER }}/deploy.sh
             /home/${{ secrets.PROD_EC2_USER }}/deploy.sh
