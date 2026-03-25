@@ -35,7 +35,7 @@ public class QaParamDefault {
 	@Column(name = "param_name", nullable = false)
 	private String paramName;
 
-	@Column(name = "param_value", nullable = false)
+	@Column(name = "param_value")
 	private String paramValue;
 
 	public static QaParamDefault create(Team team, String paramName, String paramValue) {
@@ -44,5 +44,9 @@ public class QaParamDefault {
 		param.paramName = paramName;
 		param.paramValue = paramValue;
 		return param;
+	}
+
+	public void updateValue(String paramValue) {
+		this.paramValue = paramValue;
 	}
 }

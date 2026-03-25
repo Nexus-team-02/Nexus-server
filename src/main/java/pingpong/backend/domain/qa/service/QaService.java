@@ -37,6 +37,7 @@ import pingpong.backend.domain.qa.dto.QaBulkExecuteResponse;
 import pingpong.backend.domain.qa.dto.QaCaseDetailDto;
 import pingpong.backend.domain.qa.dto.QaCaseSummaryDto;
 import pingpong.backend.domain.qa.dto.QaExecuteResultDto;
+import pingpong.backend.domain.qa.dto.QaPathVariableRequest;
 import pingpong.backend.domain.qa.dto.QaPathVariableResponse;
 import pingpong.backend.domain.qa.dto.QaReRunRequest;
 import pingpong.backend.domain.qa.dto.QaScenarioDetail;
@@ -205,7 +206,9 @@ public class QaService {
 		// 1-1. 팀의 path variable 기본값 로딩
 		Long teamId = endpoint.getSnapshot().getTeam().getId();
 		Map<String, String> paramDefaults = qaParamDefaultRepository.findByTeamId(teamId)
-			.stream().collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
+			.stream()
+			.filter(d -> d.getParamValue() != null && !d.getParamValue().isBlank())
+			.collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
 
 		// 2. LlmQaService를 통해 시나리오 생성 요청 (Step 1 & Step 2 포함)
 		LlmQaService.QaOutcome outcome = llmQaService.generateScenarios(spec, paramDefaults);
@@ -438,7 +441,9 @@ public class QaService {
 		if (pathVars != null && !isNotFoundTest) {
 			pathVars = new HashMap<>(pathVars);
 			Map<String, String> paramDefaults = qaParamDefaultRepository.findByTeamId(teamId)
-				.stream().collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
+				.stream()
+				.filter(d -> d.getParamValue() != null && !d.getParamValue().isBlank())
+				.collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
 			List<SwaggerParameter> params = swaggerParameterRepository.findByEndpointId(endpointId);
 			Map<String, String> schemaTypes = params.stream()
 				.filter(p -> "path".equals(p.getInType()))
@@ -621,54 +626,69 @@ public class QaService {
 			.orElse(Collections.emptyList());
 	}
 
+	@Transactional
 	public List<QaPathVariableResponse> getPathVariableList(Long teamId) {
-		return swaggerSnapshotRepository.findTopByTeamIdOrderByIdDesc(teamId)
-			.map(snapshot -> {
-				List<Endpoint> endpoints = endpointRepository.findBySnapshotId(snapshot.getId());
-				if (endpoints.isEmpty()) {
-					return Collections.<QaPathVariableResponse>emptyList();
-				}
+		var snapshotOpt = swaggerSnapshotRepository.findTopByTeamIdOrderByIdDesc(teamId);
+		if (snapshotOpt.isEmpty()) return Collections.emptyList();
 
-				List<Long> endpointIds = endpoints.stream().map(Endpoint::getId).toList();
-				List<SwaggerParameter> pathParams = swaggerParameterRepository
-					.findByEndpointIdInAndInType(endpointIds, "path");
+		List<Endpoint> endpoints = endpointRepository.findBySnapshotId(snapshotOpt.get().getId());
+		if (endpoints.isEmpty()) return Collections.emptyList();
 
-				// 파라미터 이름 기준 중복 제거 (첫 번째 발견된 스키마 타입 유지)
-				Map<String, String> uniqueParams = new LinkedHashMap<>();
-				for (SwaggerParameter param : pathParams) {
-					uniqueParams.putIfAbsent(param.getName(), extractSchemaType(param.getSchemaJson()));
-				}
+		List<Long> endpointIds = endpoints.stream().map(Endpoint::getId).toList();
+		List<SwaggerParameter> pathParams = swaggerParameterRepository
+			.findByEndpointIdInAndInType(endpointIds, "path");
 
-				// 기존 저장값 매칭
-				Map<String, String> savedDefaults = qaParamDefaultRepository.findByTeamId(teamId)
-					.stream().collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
+		// 스웨거 기준 고유 path variable 이름 + 스키마 타입
+		Map<String, String> currentParams = new LinkedHashMap<>();
+		for (SwaggerParameter param : pathParams) {
+			currentParams.putIfAbsent(param.getName(), extractSchemaType(param.getSchemaJson()));
+		}
+		if (currentParams.isEmpty()) return Collections.emptyList();
 
-				return uniqueParams.entrySet().stream()
-					.map(e -> new QaPathVariableResponse(
-						e.getKey(),
-						e.getValue(),
-						savedDefaults.get(e.getKey())
-					))
-					.toList();
-			})
-			.orElse(Collections.emptyList());
+		// DB 기존 레코드와 비교하여 upsert
+		List<QaParamDefault> existingDefaults = qaParamDefaultRepository.findByTeamId(teamId);
+		Map<String, QaParamDefault> existingMap = existingDefaults.stream()
+			.collect(toMap(QaParamDefault::getParamName, d -> d));
+
+		// 사라진 param 삭제
+		List<QaParamDefault> toDelete = existingDefaults.stream()
+			.filter(d -> !currentParams.containsKey(d.getParamName()))
+			.toList();
+		if (!toDelete.isEmpty()) {
+			qaParamDefaultRepository.deleteAll(toDelete);
+		}
+
+		// 새로 등장한 param 추가 (빈 값)
+		Team team = teamRepository.findById(teamId)
+			.orElseThrow(() -> new CustomException(TeamErrorCode.TEAM_NOT_FOUND));
+		List<QaParamDefault> toAdd = currentParams.keySet().stream()
+			.filter(name -> !existingMap.containsKey(name))
+			.map(name -> QaParamDefault.create(team, name, ""))
+			.toList();
+		if (!toAdd.isEmpty()) {
+			qaParamDefaultRepository.saveAll(toAdd);
+		}
+
+		// 최종 결과 조회 (upsert 반영)
+		List<QaParamDefault> finalDefaults = qaParamDefaultRepository.findByTeamId(teamId);
+		return finalDefaults.stream()
+			.map(d -> new QaPathVariableResponse(
+				d.getId(),
+				d.getParamName(),
+				currentParams.getOrDefault(d.getParamName(), ""),
+				d.getParamValue()
+			))
+			.toList();
 	}
 
 	@Transactional
-	public void savePathVariableDefaults(Long teamId, Map<String, String> pathVariables) {
-		Team team = teamRepository.findById(teamId)
-			.orElseThrow(() -> new CustomException(TeamErrorCode.TEAM_NOT_FOUND));
-
-		// 기존 기본값 삭제 후 새 값 일괄 저장
-		qaParamDefaultRepository.deleteByTeamId(teamId);
-		qaParamDefaultRepository.flush();
-
-		List<QaParamDefault> defaults = pathVariables.entrySet().stream()
-			.map(e -> QaParamDefault.create(team, e.getKey(), e.getValue()))
-			.toList();
-
-		qaParamDefaultRepository.saveAll(defaults);
-		log.info("QA_PARAM: teamId={}에 {}개의 path variable 기본값 저장", teamId, defaults.size());
+	public void updatePathVariableDefaults(List<QaPathVariableRequest.ParamUpdate> params) {
+		for (QaPathVariableRequest.ParamUpdate param : params) {
+			QaParamDefault entity = qaParamDefaultRepository.findById(param.id())
+				.orElseThrow(() -> new CustomException(QaErrorCode.QA_NOT_FOUND));
+			entity.updateValue(param.value());
+		}
+		log.info("QA_PARAM: {}개의 path variable 기본값 수정 완료", params.size());
 	}
 
 	private String tagOrDefault(String tag) {

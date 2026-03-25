@@ -1,8 +1,13 @@
 package pingpong.backend.domain.qa.dto;
 
-import java.util.Map;
+import java.util.List;
 
 public record QaPathVariableRequest(
-	Map<String, String> pathVariables
+	List<ParamUpdate> params
 ) {
+	public record ParamUpdate(
+		Long id,
+		String value
+	) {
+	}
 }

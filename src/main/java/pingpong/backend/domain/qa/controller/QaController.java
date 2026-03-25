@@ -3,6 +3,7 @@ package pingpong.backend.domain.qa.controller;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -145,16 +146,15 @@ public class QaController {
 		return SuccessResponse.ok(qaService.getPathVariableList(teamId));
 	}
 
-	@PostMapping("/path-variables")
+	@PatchMapping("/path-variables")
 	@Operation(
-		summary = "팀의 Path Variable 기본값 저장",
-		description = "QA 케이스 자동 생성 시 사용할 path variable 기본값을 팀 단위로 저장합니다."
+		summary = "팀의 Path Variable 기본값 수정",
+		description = "QA 케이스 자동 생성 시 사용할 path variable 기본값을 ID 기반으로 수정합니다."
 	)
-	public SuccessResponse<Void> savePathVariables(
-		@RequestParam Long teamId,
+	public SuccessResponse<Void> updatePathVariables(
 		@RequestBody QaPathVariableRequest request
 	) {
-		qaService.savePathVariableDefaults(teamId, request.pathVariables());
+		qaService.updatePathVariableDefaults(request.params());
 		return SuccessResponse.ok(null);
 	}
 }
