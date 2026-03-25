@@ -11,7 +11,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import pingpong.backend.domain.team.Team;
@@ -21,7 +20,6 @@ import pingpong.backend.domain.team.Team;
 @Table(name = "qa_param_default", uniqueConstraints =
 	@UniqueConstraint(columnNames = {"team_id", "param_name"}))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class QaParamDefault {
 
 	@Id

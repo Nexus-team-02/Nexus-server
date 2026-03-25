@@ -205,10 +205,7 @@ public class QaService {
 
 		// 1-1. 팀의 path variable 기본값 로딩
 		Long teamId = endpoint.getSnapshot().getTeam().getId();
-		Map<String, String> paramDefaults = qaParamDefaultRepository.findByTeamId(teamId)
-			.stream()
-			.filter(d -> d.getParamValue() != null && !d.getParamValue().isBlank())
-			.collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
+		Map<String, String> paramDefaults = loadParamDefaults(teamId);
 
 		// 2. LlmQaService를 통해 시나리오 생성 요청 (Step 1 & Step 2 포함)
 		LlmQaService.QaOutcome outcome = llmQaService.generateScenarios(spec, paramDefaults);
@@ -231,7 +228,7 @@ public class QaService {
 			result.scenarios().size(), endpointId);
 
 		// 5. DB 저장 로직 실행 (POSITIVE 케이스 후처리 포함)
-		saveScenariosToDb(endpoint, result, paramDefaults, spec.parameters());
+		saveScenariosToDb(endpoint, result, paramDefaults);
 
 		log.info("QA-GEN: 성공! {}개의 시나리오가 DB에 저장되었습니다. (endpointId={})",
 			result.scenarios().size(), endpointId);
@@ -295,12 +292,10 @@ public class QaService {
 	 * POSITIVE 케이스의 path variable은 사용자 기본값으로 후처리
 	 */
 	private void saveScenariosToDb(Endpoint endpoint, QaScenarioResponse result,
-		Map<String, String> paramDefaults, List<SwaggerParameter> parameters) {
+		Map<String, String> paramDefaults) {
 
 		// path 타입 파라미터의 스키마 타입 매핑 (후처리 fallback용)
-		Map<String, String> pathParamSchemaTypes = parameters.stream()
-			.filter(p -> "path".equals(p.getInType()))
-			.collect(toMap(SwaggerParameter::getName, p -> extractSchemaType(p.getSchemaJson()), (a, b) -> a));
+		Map<String, String> pathParamSchemaTypes = loadPathParamSchemaTypes(endpoint.getId());
 
 		List<QaCase> qaCases = result.scenarios().stream()
 			.map(scenario -> {
@@ -360,6 +355,18 @@ public class QaService {
 		}
 		// schema type이 integer이거나, schema 정보가 없는 경우(null/"") Id로 끝나는 파라미터는 ID로 간주
 		return schemaType == null || schemaType.isBlank() || "integer".equals(schemaType);
+	}
+
+	private Map<String, String> loadParamDefaults(Long teamId) {
+		return qaParamDefaultRepository.findByTeamId(teamId).stream()
+			.filter(d -> d.getParamValue() != null && !d.getParamValue().isBlank())
+			.collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
+	}
+
+	private Map<String, String> loadPathParamSchemaTypes(Long endpointId) {
+		return swaggerParameterRepository.findByEndpointId(endpointId).stream()
+			.filter(p -> "path".equals(p.getInType()))
+			.collect(toMap(SwaggerParameter::getName, p -> extractSchemaType(p.getSchemaJson()), (a, b) -> a));
 	}
 
 	private String extractSchemaType(String schemaJson) {
@@ -440,14 +447,8 @@ public class QaService {
 		boolean isNotFoundTest = qa.getTestType() == TestType.NEGATIVE && qa.getExpectedStatusCode() == 404;
 		if (pathVars != null && !isNotFoundTest) {
 			pathVars = new HashMap<>(pathVars);
-			Map<String, String> paramDefaults = qaParamDefaultRepository.findByTeamId(teamId)
-				.stream()
-				.filter(d -> d.getParamValue() != null && !d.getParamValue().isBlank())
-				.collect(toMap(QaParamDefault::getParamName, QaParamDefault::getParamValue));
-			List<SwaggerParameter> params = swaggerParameterRepository.findByEndpointId(endpointId);
-			Map<String, String> schemaTypes = params.stream()
-				.filter(p -> "path".equals(p.getInType()))
-				.collect(toMap(SwaggerParameter::getName, p -> extractSchemaType(p.getSchemaJson()), (a, b) -> a));
+			Map<String, String> paramDefaults = loadParamDefaults(teamId);
+			Map<String, String> schemaTypes = loadPathParamSchemaTypes(endpointId);
 			applyPathVariableDefaults(pathVars, paramDefaults, schemaTypes);
 		}
 
@@ -626,24 +627,26 @@ public class QaService {
 			.orElse(Collections.emptyList());
 	}
 
+	/**
+	 * 스웨거 sync 시 호출: 최신 스냅샷의 path 파라미터 기준으로 QaParamDefault를 동기화
+	 */
 	@Transactional
-	public List<QaPathVariableResponse> getPathVariableList(Long teamId) {
+	public void syncPathVariableDefaults(Long teamId) {
 		var snapshotOpt = swaggerSnapshotRepository.findTopByTeamIdOrderByIdDesc(teamId);
-		if (snapshotOpt.isEmpty()) return Collections.emptyList();
+		if (snapshotOpt.isEmpty()) return;
 
 		List<Endpoint> endpoints = endpointRepository.findBySnapshotId(snapshotOpt.get().getId());
-		if (endpoints.isEmpty()) return Collections.emptyList();
+		if (endpoints.isEmpty()) return;
 
 		List<Long> endpointIds = endpoints.stream().map(Endpoint::getId).toList();
 		List<SwaggerParameter> pathParams = swaggerParameterRepository
 			.findByEndpointIdInAndInType(endpointIds, "path");
 
-		// 스웨거 기준 고유 path variable 이름 + 스키마 타입
+		// 스웨거 기준 고유 path variable 이름 수집
 		Map<String, String> currentParams = new LinkedHashMap<>();
 		for (SwaggerParameter param : pathParams) {
 			currentParams.putIfAbsent(param.getName(), extractSchemaType(param.getSchemaJson()));
 		}
-		if (currentParams.isEmpty()) return Collections.emptyList();
 
 		// DB 기존 레코드와 비교하여 upsert
 		List<QaParamDefault> existingDefaults = qaParamDefaultRepository.findByTeamId(teamId);
@@ -659,23 +662,47 @@ public class QaService {
 		}
 
 		// 새로 등장한 param 추가 (빈 값)
-		Team team = teamRepository.findById(teamId)
-			.orElseThrow(() -> new CustomException(TeamErrorCode.TEAM_NOT_FOUND));
-		List<QaParamDefault> toAdd = currentParams.keySet().stream()
-			.filter(name -> !existingMap.containsKey(name))
-			.map(name -> QaParamDefault.create(team, name, ""))
-			.toList();
-		if (!toAdd.isEmpty()) {
-			qaParamDefaultRepository.saveAll(toAdd);
+		if (!currentParams.isEmpty()) {
+			Team team = teamRepository.findById(teamId)
+				.orElseThrow(() -> new CustomException(TeamErrorCode.TEAM_NOT_FOUND));
+			List<QaParamDefault> toAdd = currentParams.keySet().stream()
+				.filter(name -> !existingMap.containsKey(name))
+				.map(name -> QaParamDefault.create(team, name, ""))
+				.toList();
+			if (!toAdd.isEmpty()) {
+				qaParamDefaultRepository.saveAll(toAdd);
+			}
 		}
 
-		// 최종 결과 조회 (upsert 반영)
-		List<QaParamDefault> finalDefaults = qaParamDefaultRepository.findByTeamId(teamId);
-		return finalDefaults.stream()
+		log.info("QA_PARAM_SYNC: teamId={} path variable 기본값 동기화 완료", teamId);
+	}
+
+	/**
+	 * 팀의 path variable 기본값 목록 조회 (순수 조회 전용)
+	 */
+	public List<QaPathVariableResponse> getPathVariableList(Long teamId) {
+		var snapshotOpt = swaggerSnapshotRepository.findTopByTeamIdOrderByIdDesc(teamId);
+		if (snapshotOpt.isEmpty()) return Collections.emptyList();
+
+		List<Endpoint> endpoints = endpointRepository.findBySnapshotId(snapshotOpt.get().getId());
+		if (endpoints.isEmpty()) return Collections.emptyList();
+
+		List<Long> endpointIds = endpoints.stream().map(Endpoint::getId).toList();
+		List<SwaggerParameter> pathParams = swaggerParameterRepository
+			.findByEndpointIdInAndInType(endpointIds, "path");
+
+		// 스웨거 기준 스키마 타입 매핑 (응답용)
+		Map<String, String> schemaTypeMap = new LinkedHashMap<>();
+		for (SwaggerParameter param : pathParams) {
+			schemaTypeMap.putIfAbsent(param.getName(), extractSchemaType(param.getSchemaJson()));
+		}
+
+		List<QaParamDefault> defaults = qaParamDefaultRepository.findByTeamId(teamId);
+		return defaults.stream()
 			.map(d -> new QaPathVariableResponse(
 				d.getId(),
 				d.getParamName(),
-				currentParams.getOrDefault(d.getParamName(), ""),
+				schemaTypeMap.getOrDefault(d.getParamName(), ""),
 				d.getParamValue()
 			))
 			.toList();
@@ -700,6 +727,7 @@ public class QaService {
 		try {
 			return objectMapper.readValue(json, new TypeReference<Map<String, String>>() {});
 		} catch (Exception e) {
+			log.warn("JSON → Map 파싱 실패: {}", e.getMessage());
 			return Collections.emptyMap();
 		}
 	}
