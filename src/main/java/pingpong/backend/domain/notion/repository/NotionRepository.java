@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import pingpong.backend.domain.notion.Notion;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface NotionRepository extends JpaRepository<Notion, Long> {
@@ -19,6 +20,6 @@ public interface NotionRepository extends JpaRepository<Notion, Long> {
     Optional<Notion> findByTeamIdForUpdate(@Param("teamId") Long teamId);
 
     @Query("select n from Notion n join fetch n.team where n.workspaceId = :workspaceId")
-    Optional<Notion> findByWorkspaceId(@Param("workspaceId") String workspaceId);
+    List<Notion> findByWorkspaceId(@Param("workspaceId") String workspaceId);
 
 }
