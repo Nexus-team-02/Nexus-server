@@ -11,8 +11,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import pingpong.backend.domain.notion.dto.common.PageDateRange;
 import pingpong.backend.domain.notion.dto.response.PageDetailResponse;
-
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "task")
@@ -53,6 +53,9 @@ public class Task {
     @Column(name = "page_content", columnDefinition = "TEXT")
     private String pageContent;
 
+    @Column(name = "created_at")
+    private LocalDate createdAt;
+
     @Column(name = "last_synced_at", nullable = false)
     private Instant lastSyncedAt;
 
@@ -69,6 +72,10 @@ public class Task {
 
     public void updateChildDatabaseId(String id) {
         this.childDatabaseId = id;
+    }
+
+    public void updateCreatedAt(LocalDate createdAt) {
+        this.createdAt = createdAt;
     }
 
     public static Task from(Long teamId, PageDetailResponse page) {

@@ -6,14 +6,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import pingpong.backend.domain.notion.dto.common.NotionDateRange;
+import pingpong.backend.domain.notion.dto.request.NotionPageUpdateRequest;
 import pingpong.backend.domain.notion.dto.response.ChildDatabaseWithPagesResponse;
 import pingpong.backend.domain.notion.dto.response.DatabaseWithPagesResponse;
 import pingpong.backend.domain.notion.dto.response.PageDetailResponse;
+import pingpong.backend.domain.task.Task;
+import pingpong.backend.domain.task.repository.TaskRepository;
 import pingpong.backend.domain.task.service.TaskSyncService;
 import pingpong.backend.global.rag.indexing.dto.IndexJob;
 import pingpong.backend.global.rag.indexing.enums.IndexSourceType;
 import pingpong.backend.global.rag.indexing.job.IndexJobPublisher;
 import pingpong.backend.global.rag.indexing.repository.VectorStoreGateway;
+import java.time.LocalDate;
+import java.util.Optional;
 
 /**
  * Notion 웹훅 이벤트 발생 시 VectorDB를 동기화합니다.
@@ -32,7 +38,10 @@ public class NotionWebhookIndexingService {
     private final IndexJobPublisher indexJobPublisher;
     private final VectorStoreGateway vectorStoreGateway;
     private final TaskSyncService taskSyncService;
+    private final TaskRepository taskRepository;
     private final ObjectMapper objectMapper;
+
+    private static final String STATUS_COMPLETED = "완료";
 
     @Async("indexExecutor")
     public void triggerPageIndexing(Long teamId, String pageId) {
@@ -53,6 +62,11 @@ public class NotionWebhookIndexingService {
                 }
             } catch (Exception e) {
                 log.error("WEBHOOK_INDEX: child database 인덱싱 실패 teamId={} pageId={}", teamId, pageId, e);
+            }
+            try {
+                pageResponse = autoSetCompletedDateIfNeeded(teamId, pageId, pageResponse);
+            } catch (Exception e) {
+                log.error("WEBHOOK_INDEX: 완료일 자동 설정 실패 teamId={} pageId={}", teamId, pageId, e);
             }
             try {
                 taskSyncService.upsert(teamId, pageResponse);
@@ -136,6 +150,43 @@ public class NotionWebhookIndexingService {
         JsonNode payload = objectMapper.valueToTree(dbResponse);
         indexJobPublisher.publish(new IndexJob(IndexSourceType.NOTION, teamId, apiPath, childDatabaseId, payload));
         indexPage(teamId, dbResponse.parentPageId());
+    }
+
+    /**
+     * 상태가 "완료"이고 completedDate가 미설정(null)인 경우 자동으로 완료일을 설정하고 Notion에 write-back합니다.
+     * completedDate가 이미 존재하면 사용자가 수동 설정한 것으로 간주하여 덮어쓰지 않습니다.
+     */
+    private PageDetailResponse autoSetCompletedDateIfNeeded(Long teamId, String pageId, PageDetailResponse pageResponse) {
+        if (!STATUS_COMPLETED.equals(pageResponse.status())) {
+            return pageResponse;
+        }
+        if (pageResponse.completedDate() != null) {
+            log.info("WEBHOOK_INDEX: 완료일 이미 존재 — 자동 설정 건너뜀 pageId={}", pageId);
+            return pageResponse;
+        }
+
+        String start = resolveCompletedDateStart(pageResponse, pageId);
+        String end = LocalDate.now().toString();
+        log.info("WEBHOOK_INDEX: 완료일 자동 설정 pageId={} start={} end={}", pageId, start, end);
+
+        NotionDateRange completedDate = new NotionDateRange(start, end);
+        NotionPageUpdateRequest updateRequest = new NotionPageUpdateRequest(null, null, completedDate, null);
+        return notionPageService.updatePage(teamId, pageId, updateRequest);
+    }
+
+    /**
+     * 완료일 start 값을 결정합니다.
+     * 우선순위: 계획일(date).start → 기존 Task의 createdAt → 오늘 날짜
+     */
+    private String resolveCompletedDateStart(PageDetailResponse pageResponse, String pageId) {
+        if (pageResponse.date() != null && pageResponse.date().start() != null) {
+            return pageResponse.date().start();
+        }
+        Optional<Task> existingTask = taskRepository.findById(pageId);
+        if (existingTask.isPresent() && existingTask.get().getCreatedAt() != null) {
+            return existingTask.get().getCreatedAt().toString();
+        }
+        return LocalDate.now().toString();
     }
 
     private String resolveCompactPrimaryDatabaseId(Long teamId) {
