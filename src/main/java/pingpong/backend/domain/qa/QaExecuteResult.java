@@ -60,15 +60,4 @@ public class QaExecuteResult {
 		return result;
 	}
 
-	public static QaExecuteResult createFailed(QaCase qaCase, String errorMessage, long durationMs) {
-		QaExecuteResult result = new QaExecuteResult();
-		result.qaCase = qaCase;
-		result.httpStatus = 0;
-		result.isSuccess = false;
-		result.responseHeaders = null;
-		result.responseBody = errorMessage;
-		result.executedAt = LocalDateTime.now();
-		result.durationMs = durationMs;
-		return result;
-	}
 }

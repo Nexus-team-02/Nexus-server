@@ -488,28 +488,19 @@ public class QaService {
 		boolean isSuccess = (actualStatus == expectedStatus);
 		qa.updateIsSuccess(isSuccess);
 
-		// 4. 결과 저장 (기대값 일치 시 create, 불일치 시 createFailed 호출하거나 통합 사용)
+		// 4. 결과 저장
 		String bodyJson = serializeToJson(responseBody);
-		QaExecuteResult result;
-
-		if (isSuccess) {
-			// 기대한 대로 응답이 온 경우 (정상이든 에러든)
-			result = QaExecuteResult.create(qa, actualStatus, true, responseHeadersJson, bodyJson, durationMs);
-		} else {
-			// 기대와 다른 응답이 온 경우
-			result = QaExecuteResult.createFailed(qa, "Status Mismatch: Expected " + expectedStatus + " but got " + actualStatus, durationMs);
-		}
-
+		QaExecuteResult result = QaExecuteResult.create(qa, actualStatus, isSuccess, responseHeadersJson, bodyJson, durationMs);
 		qaExecuteResultRepository.save(result);
 
 		return new QaExecuteResultDto(
 				result.getId(),
-				actualStatus,
-				isSuccess,
-				null,
-				responseBody,
+				result.getHttpStatus(),
+				result.getIsSuccess(),
+				parseJsonToMap(result.getResponseHeaders()),
+				parseJsonToNode(result.getResponseBody()),
 				result.getExecutedAt(),
-				durationMs,
+				result.getDurationMs(),
 				expectedStatus
 		);
 
