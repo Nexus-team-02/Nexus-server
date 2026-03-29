@@ -11,5 +11,4 @@ public interface QaExecuteResultRepository extends JpaRepository<QaExecuteResult
 
 	java.util.Optional<QaExecuteResult> findTopByQaCaseIdOrderByExecutedAtDesc(Long qaCaseId);
 	List<QaExecuteResult> findByQaCaseIdOrderByExecutedAtDesc(Long qaCaseId);
-	boolean existsByQaAndIsSuccessTrue(QaCase qa);
 }
