@@ -4,5 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "상품 가격 수정 요청")
 public record ItemPriceUpdateRequest(
-	@Schema(description = "변경할 가격(원)", example = "79000") Integer price
+	@Schema(description = "변경할 가격(원)", example = "79000") Long price,
+	@Schema(description = "할인율(%)", example = "10") Integer discountRate
 ) {}
