@@ -485,7 +485,7 @@ public class QaService {
 		int expectedStatus = qa.getExpectedStatusCode();
 
 		// 3. 성공 여부 판단 (핵심: 예외 여부와 상관없이 상태 코드만 비교)
-		boolean isSuccess = (actualStatus == expectedStatus);
+		boolean isSuccess = isQaSuccess(actualStatus, expectedStatus);
 		qa.updateIsSuccess(isSuccess);
 
 		// 4. 결과 저장
@@ -504,6 +504,39 @@ public class QaService {
 				expectedStatus
 		);
 
+	}
+
+	/**
+	 * QA 성공 여부 판단 로직 (확장판)
+	 * 1. 상태 코드가 정확히 일치하면 성공
+	 * 2. 400, 412, 422 (입력값/비즈니스 유효성 오류)끼리는 서로 달라도 성공으로 간주
+	 * 3. 400, 404 (리소스 미존재/잘못된 참조)끼리는 서로 달라도 성공으로 간주
+	 */
+	private boolean isQaSuccess(int actual, int expected) {
+		// 1. 완전 일치하는 경우
+		if (actual == expected) {
+			return true;
+		}
+
+		// 2. 유효성 검증 및 입력 오류 그룹 (400, 412, 422)
+		// 클라이언트가 기대한 에러와 실제 에러가 모두 이 그룹에 속하면 성공
+		boolean isActualValidationGroup = (actual == 400 || actual == 412 || actual == 422);
+		boolean isExpectedValidationGroup = (expected == 400 || expected == 412 || expected == 422);
+
+		if (isActualValidationGroup && isExpectedValidationGroup) {
+			return true;
+		}
+
+		// 3. 리소스 미존재 및 잘못된 경로 그룹 (400, 404)
+		// 400은 포괄적인 에러라 404와도 겹치는 경우가 많음 (예: 존재하지 않는 ID를 파라미터로 보냄)
+		boolean isActualNotFoundGroup = (actual == 400 || actual == 404);
+		boolean isExpectedNotFoundGroup = (expected == 400 || expected == 404);
+
+		if (isActualNotFoundGroup && isExpectedNotFoundGroup) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**

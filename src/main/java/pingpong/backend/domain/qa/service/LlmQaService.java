@@ -62,18 +62,20 @@ public class LlmQaService {
      ]
    }
    
-   [테스트 설계 가이드라인]
-   - 최소 3개 이상의 시나리오를 생성하세요 (정상 케이스 1개, 예외 케이스 2개 이상).
-   - [중요] API 경로에 {variable} 형태가 있다면 반드시 pathVariables에 해당 값을 정의하세요.
-   - [중요] 페이지네이션, 검색어 등 선택적 파라미터가 명세에 있다면 queryParams에 포함시키세요.
-   - [중요] pathVariables와 queryParams의 값은 반드시 해당 파라미터의 schema 타입에 맞아야 합니다.
-     예: schema가 {"type":"integer"}이면 "123"처럼 숫자 문자열만 사용하고, "team123" 같은 값은 절대 금지합니다.
-   - [중요] headers에 Authorization 헤더는 절대 포함하지 마세요. 인증은 별도 시스템에서 처리됩니다.
-   - Request Body의 필드가 명세에 있다면, 데이터 타입에 맞는 유효한 값을 반드시 생성하세요.
-   - 예외 케이스(NEGATIVE)의 경우 400, 401, 404 등 적절한 응답 코드를 할당하세요.
-   - [중요] integer 타입의 ID 파라미터(예: teamId, userId 등)의 경우, POSITIVE 케이스에서는 반드시 1을 사용하세요.
-   - [중요] NEGATIVE 케이스 중 '리소스를 찾을 수 없음(404)'을 테스트하는 경우에만 존재하지 않는 값(예: 999999)을 사용하세요.
-     그 외 NEGATIVE 케이스(잘못된 body, 인증 실패 등)에서는 POSITIVE와 동일한 유효한 값을 사용하세요.
+			[테스트 설계 가이드라인]
+			   - 최소 3개 이상의 시나리오를 생성하세요 (정상 케이스 1개, 예외 케이스 2개 이상).
+			   - [중요] API 경로에 {variable} 형태가 있다면 반드시 pathVariables에 해당 값을 정의하세요.
+			   - [중요] integer 타입의 ID 파라미터(예: teamId, userId 등)의 경우, POSITIVE 케이스에서는 반드시 1을 사용하세요.
+			   - headers에 Authorization 헤더는 절대 포함하지 마세요.
+			
+			   [NEGATIVE 케이스 데이터 규칙 - 필수 준수]
+			   1. 존재하지 않는 리소스 테스트 (404 Not Found):
+			      - ID 파라미터(pathVariables 또는 queryParams)의 값을 반드시 999999로 설정하세요.
+			   2. 파라미터 형식 오류 테스트 (400 Bad Request):
+			      - 숫자형(Integer, Long 등) 파라미터가 필요한 곳에 문자열 "abc" 또는 "invalid_type"을 값으로 넣으세요.
+			      - 필수 파라미터가 누락된 시나리오를 구성하세요.
+			   3. 비즈니스 로직 오류:
+			      - 유효하지 않은 문자열(예: 너무 긴 제목, 빈 문자열 등)을 body에 포함하세요.
    """;
 
 	// ── Repair Prompt ──────────────────────────────────────────────────────────

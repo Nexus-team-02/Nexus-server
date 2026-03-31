@@ -36,9 +36,11 @@ out/
 
 ### VS Code ###
 .vscode/
+src/main/resources/application.yml
 
 ### YAML ###
 application.yaml
+
 
 # TypeScript build
 mcp-server/dist/
