@@ -511,31 +511,38 @@ public class QaService {
 	 * 1. 상태 코드가 정확히 일치하면 성공
 	 * 2. 400, 412, 422 (입력값/비즈니스 유효성 오류)끼리는 서로 달라도 성공으로 간주
 	 * 3. 400, 404 (리소스 미존재/잘못된 참조)끼리는 서로 달라도 성공으로 간주
+	 * 4. 400, 409
 	 */
 	private boolean isQaSuccess(int actual, int expected) {
-		// 1. 완전 일치하는 경우
+		// 1. 완전 일치하는 경우 (가장 이상적)
 		if (actual == expected) {
 			return true;
 		}
 
-		// 2. 유효성 검증 및 입력 오류 그룹 (400, 412, 422)
-		// 클라이언트가 기대한 에러와 실제 에러가 모두 이 그룹에 속하면 성공
-		boolean isActualValidationGroup = (actual == 400 || actual == 412 || actual == 422);
-		boolean isExpectedValidationGroup = (expected == 400 || expected == 412 || expected == 422);
-
-		if (isActualValidationGroup && isExpectedValidationGroup) {
+		// 2. [그룹 A] 데이터 유효성 및 입력 형식 오류 (Validation Group)
+		// 400(범용), 412(조건부 실패), 422(처리 불가능한 엔티티)
+		List<Integer> validationGroup = List.of(400, 412, 422);
+		if (validationGroup.contains(actual) && validationGroup.contains(expected)) {
 			return true;
 		}
 
-		// 3. 리소스 미존재 및 잘못된 경로 그룹 (400, 404)
-		// 400은 포괄적인 에러라 404와도 겹치는 경우가 많음 (예: 존재하지 않는 ID를 파라미터로 보냄)
-		boolean isActualNotFoundGroup = (actual == 400 || actual == 404);
-		boolean isExpectedNotFoundGroup = (expected == 400 || expected == 404);
-
-		if (isActualNotFoundGroup && isExpectedNotFoundGroup) {
+		// 3. [그룹 B] 리소스 존재 여부 및 경로 오류 (Resource Group)
+		// 400(범용), 404(찾을 수 없음)
+		// 400은 존재하지 않는 ID를 파라미터로 보낼 때 서버에서 던지는 경우가 많아 포함함
+		List<Integer> resourceGroup = List.of(400, 404);
+		if (resourceGroup.contains(actual) && resourceGroup.contains(expected)) {
 			return true;
 		}
 
+		// 4. [보너스 그룹] 리소스 충돌 (Conflict Group)
+		// 400(범용), 409(충돌)
+		// 중복 데이터 가입 등의 시나리오에서 혼용됨
+		List<Integer> conflictGroup = List.of(400, 409);
+		if (conflictGroup.contains(actual) && conflictGroup.contains(expected)) {
+			return true;
+		}
+
+		// 그 외의 경우(성공/실패 혼용, 500번대 에러 등)는 무조건 실패 처리
 		return false;
 	}
 
