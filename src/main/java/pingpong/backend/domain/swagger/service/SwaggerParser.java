@@ -88,7 +88,7 @@ public class SwaggerParser {
 
 
 	/**
-	 * swagger json 파싱
+	 * swagger json 가져오고 서버오류(5xx)만 커스텀 예외로 처리
 	 * @param uri
 	 * @return
 	 */
