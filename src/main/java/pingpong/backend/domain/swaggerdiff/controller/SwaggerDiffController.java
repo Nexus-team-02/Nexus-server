@@ -14,6 +14,7 @@ import pingpong.backend.domain.swaggerdiff.dto.EndpointDiffListResponse;
 import pingpong.backend.domain.swaggerdiff.service.SwaggerDiffService;
 import pingpong.backend.global.response.result.SuccessResponse;
 
+// 테스트 주석
 @Hidden
 @RestController
 @RequiredArgsConstructor
