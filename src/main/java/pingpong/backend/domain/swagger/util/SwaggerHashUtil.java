@@ -42,6 +42,7 @@ public class SwaggerHashUtil {
 	public String generateSpecHash(JsonNode root) {
 		try {
 			JsonNode paths = root.get("paths");
+			//공통 스키마 정의 부분
 			JsonNode components = root.get("components");
 
 			ObjectNode minimal = mapper.createObjectNode();
@@ -97,9 +98,11 @@ public class SwaggerHashUtil {
 	 * @return
 	 */
 	private JsonNode removeNonStructuralFields(JsonNode node) {
+		if(node==null){
+			return null;
+		}
 
 		if (node.isObject()) {
-
 			ObjectNode cleaned = ((ObjectNode) node).deepCopy();
 
 			// 제거하고 싶은 필드들
