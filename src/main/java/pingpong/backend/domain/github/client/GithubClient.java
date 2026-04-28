@@ -6,6 +6,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -24,16 +28,56 @@ import pingpong.backend.global.exception.CustomException;
 public class GithubClient {
 
 	private final RestTemplate restTemplate;
-	public GithubClient(@Qualifier("githubRestTemplate") RestTemplate restTemplate) {
+	private final String githubToken;
+
+	public GithubClient(@Qualifier("githubRestTemplate") RestTemplate restTemplate,@Value("${github.token}") String githubToken) {
 		this.restTemplate = restTemplate;
+		this.githubToken=githubToken;
 	}
 
 	public List<BranchResponse> fetchBranches(String owner,String repo){
+		HttpHeaders headers=new HttpHeaders();
+		headers.set("Accept","application/vnd.github+json");
+		headers.set("Authorization","Bearer "+githubToken);
+
+		HttpEntity<Void> entity=new HttpEntity<>(headers);
 		String url=String.format("https://api.github.com/repos/%s/%s/branches",owner,repo);
 
-		BranchResponse[] response=restTemplate.getForObject(url,BranchResponse[].class);
-		return response!=null? Arrays.asList(response):List.of();
+		try{
+			ResponseEntity<BranchResponse[]> response=restTemplate.exchange(
+					url,
+					HttpMethod.GET,
+					entity,
+					BranchResponse[].class
+			);
 
+			if(response.getBody()!=null){
+				checkRateLimit(response);
+				return Arrays.asList(response.getBody());
+			}
+		}catch(HttpClientErrorException.Forbidden e){
+			log.error("Github API 권한 부족 또는 Rate Limit 초과:{}",e.getMessage());
+			throw new CustomException(GithubErrorCode.API_RATE_LIMIT_EXCEED);
+		}catch(HttpClientErrorException.NotFound e){
+			log.error("레포지토리를 찾을 수 없음:{}/{}",owner,repo);
+			throw new CustomException(GithubErrorCode.REPOSITORY_NOT_FOUND);
+		}catch(Exception e){
+			log.error("Github API 호출 중 알 수 없는 오류 발생:{}",e.getMessage());
+			throw new CustomException(GithubErrorCode.GITHUB_API_ERROR);
+		}
+
+		return List.of();
+
+	}
+
+	public void checkRateLimit(ResponseEntity<?> response) {
+		HttpHeaders headers = response.getHeaders();
+
+		String limit = headers.getFirst("X-RateLimit-Limit");
+		String remaining = headers.getFirst("X-RateLimit-Remaining");
+		String reset = headers.getFirst("X-RateLimit-Reset");
+
+		log.info("GitHub API Limit: {}, Remaining: {}, Reset: {}", limit, remaining, reset);
 	}
 
 	public String getLatestHeadSha(String owner,String repo,String branch){
