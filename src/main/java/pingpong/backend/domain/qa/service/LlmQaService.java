@@ -39,11 +39,12 @@ public class LlmQaService {
 	3. 서론, 결론, 설명 문장, 주석은 절대 포함하지 마세요.
 	4. 모든 문자열 필드는 null, 빈 문자열, 공백 문자열일 수 없습니다.
 	5. 모든 객체 필드는 반드시 존재해야 하며, 없으면 빈 객체 {}를 사용하세요.
-	6. POST, PUT, PATCH 요청의 requestData.body 는 절대 null일 수 없습니다.
+	6. POST, PUT, PATCH 요청의 requestData.body 는 절대 null일 수 없습니다. GET, DELETE 요청 시에는 request body가 빈 객체를 반환할 수 있습니다.
 	7. POSITIVE 시나리오는 반드시 실제 서버에서 성공 가능한 요청이어야 합니다.
 	8. POSITIVE 시나리오에서 validation 오류가 발생할 수 있는 값은 절대 사용하지 마세요.
-	9. 테스트 데이터는 반드시 "현실적인 값"이 아니라 "검증 통과 가능한 값"을 기준으로 생성하세요.
-	10. schema 에 명시된 type, required, enum, format, min/max, minLength/maxLength 조건이 있으면 반드시 지키세요.
+	9. 누락 관련 NEGATIVE 시나리오에서는 request null값을 허용합니다.
+	10. 테스트 데이터는 반드시 "현실적인 값"이 아니라 "검증 통과 가능한 값"을 기준으로 생성하세요.
+	11. schema 에 명시된 type, required, enum, format, min/max, minLength/maxLength 조건이 있으면 반드시 지키세요.
    
    
    [출력 JSON 구조 명세]
@@ -97,8 +98,8 @@ public class LlmQaService {
 	
 	[NEGATIVE 상세 규칙]
 	- 404 시나리오에서만 존재하지 않는 ID 값 999999 를 사용하세요.
-	- 400 시나리오에서는 pathVariables 는 POSITIVE 와 동일한 유효한 값을 사용하세요.
 	- 400 시나리오에서는 body 또는 query parameter 의 필수값 누락, 타입 오류, format 오류 중 하나만 명확하게 사용하세요.
+	- negative 시나리오 중 400 시나리오에서 시나리오 제목에 "누락"이 들어가면 해당 Request는 null값으로 들어가야 합니다.
 	- 여러 오류를 한 번에 섞지 마세요.
 	- 반드시 실패 원인이 명확해야 합니다.
 	- 실패가 애매한 시나리오는 생성하지 마세요.
