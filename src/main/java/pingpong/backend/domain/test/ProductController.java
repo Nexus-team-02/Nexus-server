@@ -12,6 +12,8 @@ import pingpong.backend.domain.test.dto.product.ProductRequest;
 import pingpong.backend.domain.test.dto.product.ProductResponse;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Tag(name = "Product API", description = "상품 카탈로그 관리 기능을 제공합니다.")
 @RestController
@@ -68,5 +70,17 @@ public class ProductController {
 
         // Mock 응답
         return ResponseEntity.ok(email + "님, 상품 " + productId + "번에 대한 알림 등록이 완료되었습니다.");
+    }
+
+    @Operation(summary = "서버 상태 체크 (Test)", description = "현재 서버의 동작 여부와 시스템 시간을 확인하는 테스트용 API입니다.")
+    @GetMapping("/test/status")
+    public ResponseEntity<Map<String, Object>> getSystemStatus() {
+        Map<String, Object> status = new HashMap<>();
+        status.put("status", "UP");
+        status.put("serverTime", LocalDateTime.now());
+        status.put("message", "핑퐁 백엔드 서버가 정상 동작 중입니다.");
+        status.put("environment", "Development");
+
+        return ResponseEntity.ok(status);
     }
 }
