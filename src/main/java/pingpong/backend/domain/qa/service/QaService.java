@@ -47,7 +47,7 @@ import pingpong.backend.domain.qa.dto.QaTeamFailureResponse;
 import pingpong.backend.domain.qa.enums.SourceType;
 import pingpong.backend.domain.qa.enums.TestType;
 import pingpong.backend.domain.qa.repository.QaSyncHistoryRepository;
-import pingpong.backend.domain.swaggerdiff.dto.EndpointParameterDto;
+import pingpong.backend.domain.qa.dto.EndpointParameterDto;
 import pingpong.backend.domain.qa.repository.QaCaseRepository;
 import pingpong.backend.domain.qa.repository.QaExecuteResultRepository;
 import pingpong.backend.domain.qa.repository.QaParamDefaultRepository;

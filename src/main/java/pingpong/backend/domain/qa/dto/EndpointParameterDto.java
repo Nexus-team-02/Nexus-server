@@ -1,4 +1,4 @@
-package pingpong.backend.domain.swaggerdiff.dto;
+package pingpong.backend.domain.qa.dto;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

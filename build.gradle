@@ -67,9 +67,6 @@ dependencies {
 	// Sentry
 	implementation 'io.sentry:sentry-spring-boot-starter-jakarta:8.13.2'
 
-	// OpenAPI Diff
-	implementation 'org.openapitools.openapidiff:openapi-diff-core:2.1.7'
-	implementation 'javax.xml.bind:jaxb-api:2.3.1'
 }
 
 

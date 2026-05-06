@@ -3,7 +3,7 @@ package pingpong.backend.domain.qa.dto;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import pingpong.backend.domain.swagger.enums.CrudMethod;
-import pingpong.backend.domain.swaggerdiff.dto.EndpointParameterDto;
+import pingpong.backend.domain.qa.dto.EndpointParameterDto;
 
 import java.util.List;
 import java.util.Map;
